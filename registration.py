@@ -1,16 +1,19 @@
 import os
 import json
+import hashlib
 
 file_exists = os.path.exists('registration.json')
 
-if file_exists:
-    with open('registration.json', 'r+') as file:
-        try:
-            users = json.load(file)
-        except json.JSONDecodeError:
-            users = {}
-else:
-    users = {}
+#I dont think this will ever get opened with a registration file already
+
+#if file_exists:
+#    with open('registration.json', 'r+') as file:
+#        try:
+#            users = json.load(file)
+#        except json.JSONDecodeError:
+#            users = {}
+#else:
+users = {}
 
 if not users:
     print("No users are registered with this client.")
@@ -29,14 +32,18 @@ if not users:
                 break
             else:
                 print("Passwords don't match. Please try again.")
-        
-        users[email] = {
-            'name': name,
-            'password': password
+        sha256 = hashlib.sha256()
+        name_hash = hashlib.sha256(name.encode()).hexdigest()
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        users[email_hash] = {
+            'name': name_hash,
+            'password': password_hash
         }
         
         with open('registration.json', 'w') as file:
             json.dump(users, file)
+            
         
         print("User Registered.")
 else:

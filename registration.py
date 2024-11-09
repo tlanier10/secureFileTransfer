@@ -3,16 +3,6 @@ import json
 import hashlib
 
 file_exists = os.path.exists('registration.json')
-
-#I dont think this will ever get opened with a registration file already
-
-#if file_exists:
-#    with open('registration.json', 'r+') as file:
-#        try:
-#            users = json.load(file)
-#        except json.JSONDecodeError:
-#            users = {}
-#else:
 users = {}
 
 if not users:

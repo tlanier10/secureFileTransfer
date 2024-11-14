@@ -36,6 +36,12 @@ if not users:
             
         
         print("User Registered.")
+        
+        email = None #Forget in case something wrong happens
+        password = None
+        email_hash = None
+        password_hash = None
+        gc.collect()
 else:
     email = input("Enter Email Address: ")
     password = input("Enter Password: ")

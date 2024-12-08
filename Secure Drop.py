@@ -410,9 +410,6 @@ def main():
         if attempts == MAX_ATTEMPTS:
             print("Too many failed attempts. Exiting SecureDrop...")
             exit()
-  while True:
-      
-  find_user()
 
 if __name__ == '__main__':
     main()

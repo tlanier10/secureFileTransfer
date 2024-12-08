@@ -182,6 +182,7 @@ def secure_drop_shell(account_info):
       gc.collect()
 
 def add_contact(account_info):
+  #find_user() should replace all of this
   try:
     name = input("Enter Full Name: ")
     email = input("Enter Email Address: ")
@@ -223,7 +224,48 @@ def add_contact(account_info):
       del signature
     gc.collect()
 
+
+
+
+#UDP Connection
+def load_username(filename="accounts.json"):
+    if os.path.exists(filename):
+        with open(filename, 'r') as file:
+            data = json.load(file)
+            return data.get("email")  # Fetch the username from the JSON
+    else:
+        print("No accounts file found!")
+        return None
+
+def update_contacts(username, new_contact, filename="accounts.json"):
+    if os.path.exists(filename):
+        with open(filename, 'r') as file:
+            data = json.load(file)
+        
+        # Initialize the contacts list
+        if "contacts" not in data:
+            data["contacts"] = []
+
+        # Avoid duplicates
+        if new_contact not in data["contacts"]:
+            data["contacts"].append(new_contact)
+            print(f"Contact {new_contact} added successfully.")
+        else:
+            print(f"Contact {new_contact} is already in the contacts list.")
+        
+        # Save the updated data into JSON File
+        with open(filename, 'w') as file:
+            json.dump(data, file, indent=4)
+    else:
+        print("No accounts file found!")
+
 def find_user():
+    username = load_username()
+
+    if not username:
+        print("Username not found. Exiting.")
+        return
+
     # Start threads for sending and listening for UDP broadcasts
     send_thread = threading.Thread(target=send_broadcast)
     listen_thread = threading.Thread(target=listen_for_broadcasts)
@@ -234,12 +276,12 @@ def find_user():
     send_thread.join()  # Wait for send thread to finish (or forever)
     listen_thread.join()  # Wait for listen thread to finish (or forever)
 
-def get_local_ip():
+def get_local_ip(broadcast_ip='10.254.254.254', port=12345):
     # Get the local machine's IP address
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(0)
     try:
-        s.connect(('10.254.254.254', 1))  # Connect to an external address
+        s.connect((broadcast_ip, port))  # Connect to an external address
         local_ip = s.getsockname()[0]    # Get the local IP address
     except:
         local_ip = '127.0.0.1'  # Fallback to loopback address if no network is available
@@ -250,9 +292,12 @@ def get_local_ip():
 def send_broadcast():
     # Send a UDP broadcast message with the local IP
     broadcast_ip = '<broadcast>'  # Broadcast address
-    local_ip = get_local_ip()
     port = 12345  # Choose a port for broadcasting
-    message = f"SecureDrop_IP:{local_ip}"
+    target_username = input("Enter the username you're looking for: ")
+    local_ip = get_local_ip()
+    username = load_username()
+
+    message = f"SecureDrop_User:{username};Target:{target_username};IP:{local_ip}"
 
     # Create UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -260,21 +305,47 @@ def send_broadcast():
 
     try:
         sock.sendto(message.encode(), (broadcast_ip, port))  # Send the broadcast message
-        print(f"Broadcasting IP: {local_ip}")
+        print(f"Broadcasting as {username} looking for {target_username}")
     finally:
         sock.close()
 
-def listen_for_broadcasts():
+def listen_for_broadcasts(username):
     # Listen for UDP broadcast responses from other machines
     port = 12345
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('', port))  # Bind to all IPs on the specified port
 
-    while True:
-        data, addr = sock.recvfrom(1024)  # Buffer size of 1024 bytes
-        message = data.decode()
-        if message.startswith("SecureDrop_IP:"):
-            print(f"Received broadcast from {addr[0]}: {message}")
+    try:
+        print(f"Listening for broadcasts on port {port}...")
+        contacts = set()
+
+        while True:
+            data, addr = sock.recvfrom(1024)  # Receive data (up to 1024 bytes)
+            message = data.decode()
+            if message.startswith("SecureDrop_User:"):
+                # Parse incoming broadcast
+                parts = message.split(';')
+                user_data = {part.split(':')[0]: part.split(':')[1] for part in parts}
+                received_username = user_data.get("SecureDrop_User")
+                target_username = user_data.get("Target")
+                sender_ip = user_data.get("IP")
+                
+                if received_username == username and target_username:
+                    print(f"User {target_username} is looking for you!")
+                    contacts.add(target_username)
+                    update_contacts(username, target_username)
+                elif target_username == username and received_username:
+                    print(f"Found user {received_username} broadcasting from {sender_ip}")
+                    contacts.add(received_username)
+                    update_contacts(username, received_username)
+
+                print("Current contacts:", contacts)
+    except KeyboardInterrupt:
+        print("Stopping broadcast listener...")
+    except OSError as e:
+        print(f"Error listening for broadcasts: {e}")
+    finally:
+        sock.close()
 
 
 
@@ -339,6 +410,9 @@ def main():
         if attempts == MAX_ATTEMPTS:
             print("Too many failed attempts. Exiting SecureDrop...")
             exit()
+  while True:
+      
+  find_user()
 
 if __name__ == '__main__':
     main()

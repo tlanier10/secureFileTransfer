@@ -14,6 +14,7 @@ import os
 import gc
 import socket
 import threading
+import time
 
 # CODE FOR  ENCRYPTION
 def generate_key_pair():
@@ -172,7 +173,7 @@ def secure_drop_shell(account_info):
         print("Exiting SecureDrop...")
         break
       elif command in ["add"]:
-        add_contact(account_info)
+        find_user(account_info)
       else:
         print(f"Unknown command: {command}")
   except KeyboardInterrupt:
@@ -181,68 +182,112 @@ def secure_drop_shell(account_info):
       del account_info
       gc.collect()
 
-def add_contact(account_info):
-  #find_user() should replace all of this
-  try:
-    name = input("Enter Full Name: ")
-    email = input("Enter Email Address: ")
-
-    contact = {
-        "name": name,
-        "email": email
-    }
-
-    aes_key = base64.b64decode(account_info["aes_key"])
-    encrypted_contact = {
-        "name": encrypt_data(aes_key, name),
-        "email": encrypt_data(aes_key, email)
-    }
-
-    private_key = account_info["private_key"].encode('utf-8')
-    signature = sign_data(private_key, json.dumps(encrypted_contact))
-
-    account_info["contacts"].append({"contact": encrypted_contact, "signature": signature})
-
-    with open("accounts.json", "w") as file:
-      json.dump(account_info, file, indent=4)
-  except KeyboardInterrupt:
-    exit()
-  finally:
-    if 'name' in locals():
-      del name
-    if 'email' in locals():
-      del email
-    if 'contact' in locals():
-      del contact
-    if 'aes_key' in locals():
-      del aes_key
-    if 'encrypted_contact' in locals():
-      del encrypted_contact
-    if 'private_key' in locals():
-      del private_key
-    if 'signature' in locals():
-      del signature
-    gc.collect()
-
-
-
-
-#UDP Connection
 def load_username(filename="accounts.json"):
-    if os.path.exists(filename):
-        with open(filename, 'r') as file:
-            data = json.load(file)
-            return data.get("email")  # Fetch the username from the JSON
-    else:
-        print("No accounts file found!")
+    """Loads the current user's username (email) from the accounts file."""
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                account_info = json.load(file)
+                return account_info.get("email", None)  # Return the email if it exists
+        else:
+            print("No accounts file found.")
+            return None
+    except Exception as e:
+        print(f"Error while loading username: {e}")
         return None
+      
+
+def find_user(account_info):
+    """Automatically finds users broadcasting their presence and adds them as contacts."""
+    username = load_username()
+    if not username:
+      print("Username not found. Exiting.")
+      return
+      
+    try:
+        while True:
+            send_email = input("Enter the email for who you are looking for: ")
+
+            if validate_email(send_email):
+              print("Email validated")
+              break
+            else:
+              print("Email invalid, please type a valid email to search for")
+    except KeyboardInterrupt:
+        print('\nKeyboard Interrupt. Exiting SecureDrop...')
+        return
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    
+   
+    
+
+    def broadcast_and_listen():
+        """Handles both sending and listening for broadcasts."""
+        broadcast_ip = '255.255.255.255'  # Broadcast address
+        port = 25256  # Port for broadcasting
+        local_ip = get_local_ip()
+        message = f"SecureDrop_Email:{send_email};Sender_Email:{username};IP:{local_ip}"
+
+
+
+        # Create UDP socket for sending and listening
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.bind(('', port))  # Bind to listen on the same port
+
+        contacts = set()
+
+        try:
+            print(f"Broadcasting presence looking for {send_email} as {username} and listening for responses...")
+
+            # Send broadcast message periodically
+            threading.Thread(target=periodic_broadcast, args=(sock, message, broadcast_ip, port), daemon=True).start()
+
+            while True:
+                # Listen for incoming broadcasts
+                data, addr = sock.recvfrom(1024)  # Receive data (up to 1024 bytes)
+                message = data.decode()
+               # print(f"Received message: {data.decode()} from {addr}") # # uncomment to display all udp packets recieved
+
+                if message.startswith("SecureDrop_Email:"):
+                    # Parse the incoming broadcast
+                    parts = message.split(';')
+                    user_data = {part.split(':')[0]: part.split(':')[1] for part in parts}
+                    received_username = user_data.get("Sender_Email") #ech@ech.com
+                    sender_ip = user_data.get("IP") # comp2
+                    
+                    
+                    print(received_username) # 
+                    print(sender_ip) # comp 2 ip[]
+                    print(send_email) 
+                    if received_username == send_email and received_username != username:
+                        print(f"Found user {received_username} broadcasting from {sender_ip}")
+                        contacts.add(received_username)
+                        update_contacts(username, received_username)
+                        print(f"Added {received_username} to contacts.")
+        except KeyboardInterrupt:
+            print("Stopping broadcast listener...")
+        finally:
+            sock.close()
+
+    def periodic_broadcast(sock, message, broadcast_ip, port):
+        """Sends broadcast messages periodically."""
+        while True:
+            sock.sendto(message.encode(), (broadcast_ip, port))
+            time.sleep(5)  # Broadcast every 5 seconds
+
+    # Start broadcast and listening operations
+    broadcast_and_listen()
 
 def update_contacts(username, new_contact, filename="accounts.json"):
+    """Updates the contacts list in the accounts file."""
     if os.path.exists(filename):
         with open(filename, 'r') as file:
             data = json.load(file)
-        
-        # Initialize the contacts list
+
+        # Initialize contacts list if it doesn't exist
         if "contacts" not in data:
             data["contacts"] = []
 
@@ -252,101 +297,25 @@ def update_contacts(username, new_contact, filename="accounts.json"):
             print(f"Contact {new_contact} added successfully.")
         else:
             print(f"Contact {new_contact} is already in the contacts list.")
-        
-        # Save the updated data into JSON File
+
+        # Save the updated data into the JSON file
         with open(filename, 'w') as file:
             json.dump(data, file, indent=4)
     else:
         print("No accounts file found!")
 
-def find_user():
-    username = load_username()
-
-    if not username:
-        print("Username not found. Exiting.")
-        return
-
-    # Start threads for sending and listening for UDP broadcasts
-    send_thread = threading.Thread(target=send_broadcast)
-    listen_thread = threading.Thread(target=listen_for_broadcasts)
-
-    send_thread.start()  # Send the broadcast
-    listen_thread.start()  # Listen for incoming broadcasts
-
-    send_thread.join()  # Wait for send thread to finish (or forever)
-    listen_thread.join()  # Wait for listen thread to finish (or forever)
-
-def get_local_ip(broadcast_ip='10.254.254.254', port=12345):
-    # Get the local machine's IP address
+def get_local_ip(broadcast_ip='255.255.255.255', port=25256):
+    """Gets the local IP address."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(0)
     try:
-        s.connect((broadcast_ip, port))  # Connect to an external address
-        local_ip = s.getsockname()[0]    # Get the local IP address
+        s.connect((broadcast_ip, port))
+        local_ip = s.getsockname()[0]
     except:
-        local_ip = '127.0.0.1'  # Fallback to loopback address if no network is available
+        local_ip = '127.0.0.1'  # Fallback to loopback if no network is available
     finally:
         s.close()
     return local_ip
-
-def send_broadcast():
-    # Send a UDP broadcast message with the local IP
-    broadcast_ip = '<broadcast>'  # Broadcast address
-    port = 12345  # Choose a port for broadcasting
-    target_username = input("Enter the username you're looking for: ")
-    local_ip = get_local_ip()
-    username = load_username()
-
-    message = f"SecureDrop_User:{username};Target:{target_username};IP:{local_ip}"
-
-    # Create UDP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-    try:
-        sock.sendto(message.encode(), (broadcast_ip, port))  # Send the broadcast message
-        print(f"Broadcasting as {username} looking for {target_username}")
-    finally:
-        sock.close()
-
-def listen_for_broadcasts(username):
-    # Listen for UDP broadcast responses from other machines
-    port = 12345
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('', port))  # Bind to all IPs on the specified port
-
-    try:
-        print(f"Listening for broadcasts on port {port}...")
-        contacts = set()
-
-        while True:
-            data, addr = sock.recvfrom(1024)  # Receive data (up to 1024 bytes)
-            message = data.decode()
-            if message.startswith("SecureDrop_User:"):
-                # Parse incoming broadcast
-                parts = message.split(';')
-                user_data = {part.split(':')[0]: part.split(':')[1] for part in parts}
-                received_username = user_data.get("SecureDrop_User")
-                target_username = user_data.get("Target")
-                sender_ip = user_data.get("IP")
-                
-                if received_username == username and target_username:
-                    print(f"User {target_username} is looking for you!")
-                    contacts.add(target_username)
-                    update_contacts(username, target_username)
-                elif target_username == username and received_username:
-                    print(f"Found user {received_username} broadcasting from {sender_ip}")
-                    contacts.add(received_username)
-                    update_contacts(username, received_username)
-
-                print("Current contacts:", contacts)
-    except KeyboardInterrupt:
-        print("Stopping broadcast listener...")
-    except OSError as e:
-        print(f"Error listening for broadcasts: {e}")
-    finally:
-        sock.close()
-
 
 
 

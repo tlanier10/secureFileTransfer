@@ -1,3 +1,4 @@
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Cipher import AES
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
@@ -37,9 +38,99 @@ def decrypt_data(aes_key, encrypted_data):
 
 def sign_data(private_key, data):
   key = RSA.import_key(private_key)
-  h = SHA256.new(data.encode())
+  print(f"{base64.b64decode(data)}")
+  h = SHA256.new(base64.b64decode(data))
   signature = pkcs1_15.new(key).sign(h)
   return base64.b64encode(signature).decode()
+
+def encrypt_asymmetric(public_key, data):
+    key = RSA.import_key(public_key)
+    cipher = PKCS1_OAEP.new(key)
+    encrypted_data = cipher.encrypt(data.encode('utf-8'))
+    return base64.b64encode(encrypted_data).decode('utf-8')
+
+def decrypt_asymmetric(private_key, encrypted_data):
+    private_key = RSA.import_key(private_key)
+    cipher = PKCS1_OAEP.new(private_key)
+    encrypted_data_bytes = base64.b64decode(encrypted_data)
+    decrypted_data_bytes = cipher.decrypt(encrypted_data_bytes)
+    decrypted_data = decrypted_data_bytes.decode('utf-8')
+    return decrypted_data
+
+def encrypt_file(aes_key, file_path):
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    cipher = AES.new(base64.b64decode(aes_key), AES.MODE_EAX)
+    ciphertext, tag = cipher.encrypt_and_digest(data)
+    return base64.b64encode(cipher.nonce + tag + ciphertext).decode()
+
+def decrypt_file(aes_key, encrypted_data, output_path):
+    encrypted_data = base64.b64decode(encrypted_data)
+    nonce, tag, ciphertext = encrypted_data[:16], encrypted_data[16:32], encrypted_data[32:]
+    cipher = AES.new(aes_key, AES.MODE_EAX, nonce=nonce)
+    data = cipher.decrypt_and_verify(ciphertext, tag)
+    with open(output_path, 'wb') as f:
+        f.write(data)
+
+def calculate_file_hash(file_path):
+    sha256_hash = SHA256.new()
+    with open(file_path, 'rb') as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+def send_file(aes_key, file_path, recipient_ip, recipient_key, account_info, recipient_port=25256):
+    encrypted_data = encrypt_file(aes_key, file_path) + ";"
+    file_hash = calculate_file_hash(file_path) + ";"
+    print(f"{aes_key}")
+    
+    encrypted_aes = encrypt_asymmetric(recipient_key, aes_key) + ";"
+    print(f"{encrypted_aes}")
+    
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((recipient_ip, recipient_port))
+        # Send sender's information
+        sender_name = account_info["name"]
+        sender_email = account_info["email"]
+        sender_info = f"{sender_name};{sender_email};"
+        s.sendall(sender_info.encode())
+        
+        # Send the encrypted data and hash
+        s.sendall(encrypted_data.encode())
+        s.sendall(file_hash.encode())
+        s.sendall(encrypted_aes.encode())
+        s.close()
+
+def receive_file(aes_key, account_info, save_path, listen_ip, listen_port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((listen_ip, listen_port))
+        s.listen()
+        conn, addr = s.accept()
+        with conn:
+            # Receive sender's information
+            sender_info = conn.recv(1024 * 100).decode()
+            sender_name, sender_email, encrypted_data, received_hash, encrypted_aes, other_data = sender_info.split(';')
+            print(f"Contact '{sender_name} <{sender_email}>' is sending a file. Accept (y/n)?")
+            response = input().lower()
+            if response != 'y':
+                print("File transfer declined.")
+                return
+            private_key = account_info.get("private_key")
+            # Receive the encrypted data and hash
+            decrypted_aes = decrypt_asymmetric(private_key, encrypted_aes)
+            
+            # Decrypt the file and verify its integrity
+            decrypt_file(base64.b64decode(decrypted_aes), encrypted_data, save_path)
+            file_hash = calculate_file_hash(save_path)
+            if file_hash == received_hash:
+                print("File transfer successful and integrity verified.")
+            else:
+                print("File transfer failed. Integrity check failed.")
+
+def start_file_listener(aes_key, account_info, save_path, listen_ip, listen_port):
+    listener_thread = threading.Thread(target=receive_file, args=(aes_key, account_info, save_path, listen_ip, listen_port))
+    listener_thread.daemon = True
+    listener_thread.start()
 
 #REGISTRATION CODE
 def user_reg():
@@ -84,7 +175,7 @@ def user_reg():
 
                 # Generate keys
                 private_key, public_key = generate_key_pair()
-                aes_key = get_random_bytes(16)
+                aes_key = get_random_bytes(32)
 
                 # Account information to be saved
                 account_info = {
@@ -94,7 +185,7 @@ def user_reg():
                     "private_key": private_key.decode('utf-8'),
                     "public_key": public_key.decode('utf-8'),
                     "aes_key": base64.b64encode(aes_key).decode('utf-8'),
-                    "contacts": []
+                    "contacts": {}
                 }
 
                 try:
@@ -163,24 +254,81 @@ def user_login():
 
 #APPLICATION CODE
 def secure_drop_shell(account_info):
-  try:
-    while True:
-      command = input("secure_drop> ").lower()
-      if command in ["help"]:
-        print("add -> Add a new contact")
-        print("exit -> Exit SecureDrop")
-      elif command in ["exit"]:
-        print("Exiting SecureDrop...")
-        break
-      elif command in ["add"]:
-        find_user(account_info)
-      else:
-        print(f"Unknown command: {command}")
-  except KeyboardInterrupt:
-    exit()
-  finally:
-      del account_info
-      gc.collect()
+    try:
+        # Start the file listener thread
+        save_path = "./file.png"  # Change this to your desired save path
+        listen_ip = "0.0.0.0"  # Listen on all interfaces
+        listen_port = 25256 + 1  # Port for listening
+        aes_key = account_info["aes_key"]
+        print("test 1")
+        start_file_listener(aes_key, account_info, save_path, listen_ip, listen_port)
+        
+        while True:
+            command = input("secure_drop> ").lower()
+            if command in ["help"]:
+                print("add -> Add a new contact")
+                print("list -> List all online contacts")
+                print("send -> Transfer file to contact")
+                print("exit -> Exit SecureDrop")
+            elif command in ["exit"]:
+                print("Exiting SecureDrop...")
+                break
+            elif command in ["add"]:
+                find_user(account_info)
+            elif command.startswith("send "):
+                parts = command.split()
+                if len(parts) != 3:
+                    print("Usage: send <email> <file_path>")
+                    continue
+                recipient_email = parts[1]
+                file_path = parts[2]
+                print(f"{file_path}")
+                
+                # Check if the recipient is in the contacts list
+                if recipient_email not in account_info.get("contacts"):
+                    print(f"Contact {recipient_email} not found in contacts list.")
+                    continue
+
+                # Get recipient IP from contacts list
+                recipient_ip = get_contact_ip(recipient_email)
+                recipient_key = get_contact_key(recipient_email)
+                if not recipient_ip:
+                    print(f"Could not find IP address for {recipient_email}.")
+                    continue
+                
+                # Send the file
+                print(f"{aes_key}")
+                send_file(aes_key, file_path, recipient_ip, recipient_key, account_info)
+                
+                print("Contact has accepted the transfer request.")
+                print("File has been successfully transferred.")
+            else:
+                print(f"Unknown command: {command}")
+    except KeyboardInterrupt:
+        exit()
+    finally:
+        del account_info
+        gc.collect()
+
+def get_contact_ip(email, filename="accounts.json"):
+    """Retrieve the IP address of a contact from the contacts file."""
+    if os.path.exists(filename):
+        with open(filename, 'r') as file:
+            account_info = json.load(file)
+            contacts = account_info.get("contacts", {})
+            data = contacts.get(email, {})
+            return data.get("IP")
+    return None
+
+def get_contact_key(email, filename="accounts.json"):
+    """Retrieve the IP address of a contact from the contacts file."""
+    if os.path.exists(filename):
+        with open(filename, 'r') as file:
+            account_info = json.load(file)
+            contacts = account_info.get("contacts", {})
+            data = contacts.get(email, {})
+            return data.get("public_key")
+    return None
 
 def load_username(filename="accounts.json"):
     """Loads the current user's username (email) from the accounts file."""
@@ -188,7 +336,9 @@ def load_username(filename="accounts.json"):
         if os.path.exists(filename):
             with open(filename, 'r') as file:
                 account_info = json.load(file)
-                return account_info.get("email", None)  # Return the email if it exists
+                email = account_info.get("email", None)
+                public_key = account_info.get("public_key", None)
+                return email, public_key  # Return the email if it exists
         else:
             print("No accounts file found.")
             return None
@@ -199,7 +349,7 @@ def load_username(filename="accounts.json"):
 
 def find_user(account_info):
     """Automatically finds users broadcasting their presence and adds them as contacts."""
-    username = load_username()
+    username, public_key = load_username()
     if not username:
       print("Username not found. Exiting.")
       return
@@ -228,14 +378,12 @@ def find_user(account_info):
         broadcast_ip = '255.255.255.255'  # Broadcast address
         port = 25256  # Port for broadcasting
         local_ip = get_local_ip()
-        message = f"SecureDrop_Email:{send_email};Sender_Email:{username};IP:{local_ip}"
-
-
+        message = f"SecureDrop_Email:{send_email};Sender_Email:{username};IP:{local_ip};public_key:{public_key}"
 
         # Create UDP socket for sending and listening
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.bind(('', port))  # Bind to listen on the same port
+        sock.bind(('', port + 1))  # Bind to listen on the same port
 
         contacts = set()
 
@@ -257,6 +405,7 @@ def find_user(account_info):
                     user_data = {part.split(':')[0]: part.split(':')[1] for part in parts}
                     received_username = user_data.get("Sender_Email") #ech@ech.com
                     sender_ip = user_data.get("IP") # comp2
+                    sender_key = user_data.get("public_key")
                     
                     
                     print(received_username) # 
@@ -265,7 +414,7 @@ def find_user(account_info):
                     if received_username == send_email and received_username != username:
                         print(f"Found user {received_username} broadcasting from {sender_ip}")
                         contacts.add(received_username)
-                        update_contacts(username, received_username)
+                        update_contacts(username, received_username, sender_ip, sender_key)
                         print(f"Added {received_username} to contacts.")
         except KeyboardInterrupt:
             print("Stopping broadcast listener...")
@@ -281,7 +430,7 @@ def find_user(account_info):
     # Start broadcast and listening operations
     broadcast_and_listen()
 
-def update_contacts(username, new_contact, filename="accounts.json"):
+def update_contacts(username, new_contact, new_ip, new_key, filename="accounts.json"):
     """Updates the contacts list in the accounts file."""
     if os.path.exists(filename):
         with open(filename, 'r') as file:
@@ -289,11 +438,13 @@ def update_contacts(username, new_contact, filename="accounts.json"):
 
         # Initialize contacts list if it doesn't exist
         if "contacts" not in data:
-            data["contacts"] = []
+            data["contacts"] = {}
 
         # Avoid duplicates
         if new_contact not in data["contacts"]:
-            data["contacts"].append(new_contact)
+            data["contacts"][new_contact] = {}
+            data["contacts"][new_contact]["IP"] = new_ip
+            data["contacts"][new_contact]["public_key"] = new_key
             print(f"Contact {new_contact} added successfully.")
         else:
             print(f"Contact {new_contact} is already in the contacts list.")
@@ -382,3 +533,12 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+def verify_signature(public_key, data, signature):
+    key = RSA.import_key(public_key)
+    h = SHA256.new(data)
+    try:
+        pkcs1_15.new(key).verify(h, base64.b64decode(signature))
+        return True
+    except (ValueError, TypeError):
+        return False

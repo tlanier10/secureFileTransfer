@@ -1,9 +1,9 @@
 {
-    "name": "ech",
-    "email": "fuck@fuck.com",
-    "password": "$2b$12$crb2KzSsumqqqCZvT/hGruEAjJsq4JdhCk3bviFwvz0AJ6SEK47RS",
-    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAx64VfEe2ao2NmC7XQyj6DL8SBbZ8h8ntPwLrMRwRctx77wQd\n9s1RW1b01+OP7YUyvprXr0h22u4UbBBf9o4QG462awfTLwEtHnZPTXr5TnAG0Iu/\nZm3qpBkozQiVKkYI8IQsuNyfqeP2hwT9Ip0I781ciGDt20W+ZTg+leIIDPSLiGYw\nh5OXtGjjtD8oETIXofiKQbwkPqkQNZowO3hf8PbJ+z0INXxEUINR9aU/GAtUkGnh\nzIuxSkebsNJIYT3Vc8sSnk63a7hzn8WRx83eClqX5N4dbPQGX62epXpauT7GdoE2\n4ODUn4Guq2QqYekrTBUSv3SCH7kw3sWeGKy5AQIDAQABAoIBAAbd5ffA6JVH+mlU\nHQt+doDnNjmzkZtC1rGOymNFNZVnXyy0Tcp9u5FCT4e4F+xBYyIaZZXtzkaPnuyr\ncH1kW8ny0bOjEIBikDhmtanys22e3SEhWSru1z2e7uAELksGnwqUZQxTa/s173Wr\ntn/Q+ixy+b5n5O4gOyC0ezSA0imN1LFuzES/QT26LjZMvDAgEHvMGPJXsq4dj5A8\nEQeteYqapjTnaITB+JIw8gV4aD33WPpbI4dyXWC9r3hvMr1vG44ZE6+TOEC44mY7\nE4LmWScOVLDYE6DTPWWZD64POBEfmBqdOhxAWKK21CMf8CgBkWKLt3yCaFykQPZa\nzLzJkRUCgYEAySbGHrcaSk9/3dzvWhJfMyUE0pyyFNyXZvWsVKyQaFT//LOcm68C\nLck5oG+NcMU36Uw54+Ci0ABlWOaVTv09HPCUqa/FGT/XEnzwpv1DvkebZVsdZMfR\n/VnZnoR5dobptKyIzcdpkXfSqY56P9LScliPdjKIcoTkRat2Oi1RFuUCgYEA/iCY\nzjIZuA5HkE7BiVjXpqBh5hvzMqUk3ZvdPmF/o8WhHvGgi9tbaQDwchDZcz1uwfCL\ncZLBOqu0Z2iePi6MYQatGyKD2Co3v+mdQnvzyKY1q6kLYWRRPAOW6kcft2AeWc8L\nU29X+0Zp1UTjaOdvZACoggfAbeCs7H6PpHwI++0CgYBnJKewdklX014IoNJmyEbi\njdfkOw8hnV9RHyZHoNjHdtZweJUUS2/9lFIlTy4ipi4eRcTlcXlq2Nke9dWX1Eiy\n/zXrsMKLSO36f/BSYEmNV2B6X3c6BzBJDfqFyv4RZeqOh236vocGXX+7C+DpuyvI\nEFs3y3+l4Ti/9MTB3hzXdQKBgBGvkRLgl7ugesiHQp7daPy2srmB/nXq2lr16vrZ\nbDmommL96+9vz7fKEfHOTGPhxaCHrhy0WvBLXN3JgSHQuYJTJZ760vQrU//uMTyc\nRcYUEy4kMJ+RjLnBgjJByupHLTWQ3DftStE5AEqQZcc6PB1YkmGiSnkbJs26rSKE\nY1etAoGBAIxbALt68I+OrDwJlc70B+itUMz3Xec8h86kuoSvOUzcfMJCSzT70mhs\nwH/uNHb4Y3e8zJR1lRIXS5m11EGVNpkliUtLmrjM2ghwt6NuzU+3QJ633WYc/kCb\nz/gtffmdXRh+bqttR/He/GHRj/pg5JeUPnVeL/k7F3WWuV77Onwi\n-----END RSA PRIVATE KEY-----",
-    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx64VfEe2ao2NmC7XQyj6\nDL8SBbZ8h8ntPwLrMRwRctx77wQd9s1RW1b01+OP7YUyvprXr0h22u4UbBBf9o4Q\nG462awfTLwEtHnZPTXr5TnAG0Iu/Zm3qpBkozQiVKkYI8IQsuNyfqeP2hwT9Ip0I\n781ciGDt20W+ZTg+leIIDPSLiGYwh5OXtGjjtD8oETIXofiKQbwkPqkQNZowO3hf\n8PbJ+z0INXxEUINR9aU/GAtUkGnhzIuxSkebsNJIYT3Vc8sSnk63a7hzn8WRx83e\nClqX5N4dbPQGX62epXpauT7GdoE24ODUn4Guq2QqYekrTBUSv3SCH7kw3sWeGKy5\nAQIDAQAB\n-----END PUBLIC KEY-----",
-    "aes_key": "rnpsL+SVK0a71ttjq9bq+Q==",
+    "name": "",
+    "email": "",
+    "password": "",
+    "private_key": "",
+    "public_key": "",
+    "aes_key": "",
     "contacts": []
 }
